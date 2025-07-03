@@ -6,7 +6,7 @@ from logs.logger import log_trade
 from utils.notifier import send_alert
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
-from execution.trade_manager import open_trade, manage_exits
+from execution.trade_manager import manage_exits  # ✅ only this
 
 # Start in simulation mode by default
 simulation_mode = True
@@ -14,8 +14,7 @@ simulation_mode = True
 try:
     from data.fetch_data import get_ohlcv
     from execution.mt5_connector import initialize, shutdown
-    from execution.trade_manager import open_trade
-    from execution.exit_manager import manage_exits
+    from execution.trade_manager import open_trade  # ✅ no exit_manager here
 
     if initialize():
         print("✅ MT5 connected.")
@@ -72,7 +71,7 @@ try:
             send_alert(f"🚨 Signal: {direction} on XAUUSD @ {price:.2f}")
 
             if not simulation_mode:
-                open_trade("XAUUSD", 0.1, signal)  # You can make volume dynamic later
+                open_trade("XAUUSD", 0.1, signal)
 
             log_trade(signal, price, rsi_val, sl=150, tp=300)
         else:
@@ -82,7 +81,6 @@ try:
         if not simulation_mode:
             manage_exits()
 
-        # Wait until next 15-minute bar
         time.sleep(60 * 15)
 
 except KeyboardInterrupt:
