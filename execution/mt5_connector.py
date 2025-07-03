@@ -1,17 +1,21 @@
 import MetaTrader5 as mt5
-import time
+import os
 
 def initialize():
-    if not mt5.initialize():
-        print(f"MT5 init failed: {mt5.last_error()}")
+    path_to_terminal = r"C:\Program Files\MetaTrader 5\terminal64.exe"  # or your actual path
+
+    if not os.path.exists(path_to_terminal):
+        print("❌ terminal64.exe not found. Check your path.")
         return False
-    else:
-        print("MT5 initialized successfully")
-        return True
 
-def shutdown():
-    mt5.shutdown()
+    if not mt5.initialize(path=path_to_terminal):
+        print("❌ Initialization failed:", mt5.last_error())
+        return False
 
-def check_connection():
-    info = mt5.terminal_info()
-    print("Connected to account:", info.login)
+    account_info = mt5.account_info()
+    if account_info is None:
+        print("❌ Connected, but no account info. Are you logged in?")
+        return False
+
+    print("✅ Connected to MT5. Account:", account_info.login)
+    return True
