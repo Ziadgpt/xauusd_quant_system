@@ -17,3 +17,7 @@ def log_trade(signal, price, indicator_value, sl=150, tp=300):
         if not file_exists:
             writer.writerow(header)
         writer.writerow([now, direction, price, indicator_value, sl, tp])
+
+def log_exit(ticket, symbol, direction, entry, exit_price, result, pnl):
+    with open("logs/trade_log.csv", "a") as f:
+        f.write(f"{ticket},{symbol},{'BUY' if direction==1 else 'SELL'},{entry},{exit_price},{result},{pnl:.2f}\n")
