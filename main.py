@@ -6,6 +6,7 @@ from logs.logger import log_trade
 from utils.notifier import send_alert
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
+from execution.trade_manager import open_trade, manage_exits
 
 # Start in simulation mode by default
 simulation_mode = True
