@@ -1,0 +1,7 @@
+import csv
+from datetime import datetime
+
+def log_trade(signal, price, rsi_value, sl, tp):
+    with open("logs/trade_log.csv", mode="a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([datetime.now(), signal, price, rsi_value, sl, tp])

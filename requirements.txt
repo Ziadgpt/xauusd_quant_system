@@ -1,0 +1,12 @@
+MetaTrader5
+pandas
+numpy
+ta
+matplotlib
+plotly
+backtrader
+statsmodels
+arch
+hmmlearn
+scikit-learn
+loguru
