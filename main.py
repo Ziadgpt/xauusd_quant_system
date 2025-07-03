@@ -6,7 +6,8 @@ from logs.logger import log_trade
 from utils.notifier import send_alert
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
-from execution.mt5_init import initialize  # or wherever you defined it
+from execution.mt5_connector import initialize, shutdown
+
 
 simulation_mode = not initialize()
 
