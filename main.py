@@ -9,7 +9,6 @@ from models.hmm_model import detect_market_regime
 from execution.mt5_connector import initialize, shutdown
 
 
-simulation_mode = not initialize()
 
 mt5_enabled = True
 try:
