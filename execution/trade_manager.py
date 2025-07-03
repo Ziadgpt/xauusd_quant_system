@@ -1,125 +1,79 @@
 import MetaTrader5 as mt5
-from datetime import datetime, timedelta
+from utils.notifier import send_alert
+import pandas as pd
+import time
+from indicators.trailing_stop import calculate_trailing_stop
+from indicators.rsi import calculate_rsi
+from indicators.macd import calculate_macd
 
-# === Parameters ===
-TRAILING_DISTANCE_POINTS = 100           # Trailing SL in points (e.g., 10.0 USD = 1000 pts for XAUUSD)
-MAX_TRADE_DURATION_MINUTES = 90          # Max holding time
-VOLATILITY_THRESHOLD = 2.0               # Vol threshold to force exit
-
-# === Trade Entry ===
-def open_trade(symbol: str, volume: float, signal: int, sl=150, tp=300):
-    tick = mt5.symbol_info_tick(symbol)
-    point = mt5.symbol_info(symbol).point
-    price = tick.ask if signal == 1 else tick.bid
-    order_type = mt5.ORDER_TYPE_BUY if signal == 1 else mt5.ORDER_TYPE_SELL
-
-    request = {
-        "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": symbol,
-        "volume": volume,
-        "type": order_type,
-        "price": price,
-        "sl": price - sl * point if signal == 1 else price + sl * point,
-        "tp": price + tp * point if signal == 1 else price - tp * point,
-        "deviation": 20,
-        "magic": 234000,
-        "comment": "XAUUSD Quant Entry",
-        "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
-    }
-
-    result = mt5.order_send(request)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"❌ Trade failed: {result.comment}")
-    else:
-        print(f"✅ Trade executed: {symbol} {volume} lots {'BUY' if signal == 1 else 'SELL'} at {price:.2f}")
-
-# === Trade Exit Manager ===
 def manage_exits():
     positions = mt5.positions_get(symbol="XAUUSD")
-    if positions is None or len(positions) == 0:
-        print("📭 No open positions found.")
+    if not positions:
         return
 
-    now = datetime.utcnow()
-    point = mt5.symbol_info("XAUUSD").point
-    tick = mt5.symbol_info_tick("XAUUSD")
+    # Get latest OHLCV to compute indicators
+    from data.fetch_data import get_ohlcv
+    df = get_ohlcv()
+    if df is None or len(df) < 30:
+        return
+
+    df["rsi"] = calculate_rsi(df["close"], period=14)
+    df["macd"], df["signal"], _ = calculate_macd(df["close"])
+    last_price = df.iloc[-1]["close"]
+    last_rsi = df.iloc[-1]["rsi"]
+    macd = df.iloc[-1]["macd"]
+    signal = df.iloc[-1]["signal"]
 
     for pos in positions:
-        open_time = datetime.fromtimestamp(pos.time)
-        duration = (now - open_time).total_seconds() / 60  # minutes
+        ticket = pos.ticket
+        open_price = pos.price_open
+        volume = pos.volume
+        direction = 1 if pos.type == 0 else -1  # 0 = BUY, 1 = SELL
+        sl = pos.sl
+        tp = pos.tp
+        time_open = pos.time
 
-        price = tick.ask if pos.type == mt5.POSITION_TYPE_SELL else tick.bid
+        # === Trailing Stop Logic ===
+        new_sl = calculate_trailing_stop(open_price, last_price, direction, distance=100)
+        if new_sl and new_sl != sl:
+            mt5.order_modify(ticket, sl=new_sl, tp=tp)
+            print(f"🔄 Trailing SL updated for {ticket}: {new_sl:.2f}")
 
-        # === Trailing SL ===
-        if pos.type == mt5.POSITION_TYPE_BUY:
-            new_sl = price - TRAILING_DISTANCE_POINTS * point
-            if pos.sl is None or pos.sl < new_sl:
-                modify_sl(pos, new_sl)
-        elif pos.type == mt5.POSITION_TYPE_SELL:
-            new_sl = price + TRAILING_DISTANCE_POINTS * point
-            if pos.sl is None or pos.sl > new_sl:
-                modify_sl(pos, new_sl)
-
-        # === Max Time Exit ===
-        if duration > MAX_TRADE_DURATION_MINUTES:
-            close_position(pos)
-            print(f"⏰ Exited due to time limit: {pos.ticket}")
+        # === RSI Exit ===
+        if (direction == 1 and last_rsi > 85) or (direction == -1 and last_rsi < 15):
+            close_position(ticket, volume)
+            send_alert(f"📉 RSI Exit Triggered on {ticket}")
             continue
 
-        # === Volatility or Regime Exit (placeholders) ===
-        try:
-            from models.garch_model import forecast_garch_volatility
-            from models.hmm_model import detect_market_regime
-            from data.fetch_data import get_ohlcv
+        # === MACD Exit ===
+        if (direction == 1 and macd < signal) or (direction == -1 and macd > signal):
+            close_position(ticket, volume)
+            send_alert(f"📉 MACD Exit Triggered on {ticket}")
+            continue
 
-            df = get_ohlcv()
-            current_vol = forecast_garch_volatility(df)
-            regime, dominant = detect_market_regime(df)
+        # === Time-Based Exit (e.g., 2h = 8 candles) ===
+        age = (time.time() - time_open) / 60  # minutes
+        if age > 120:
+            close_position(ticket, volume)
+            send_alert(f"⏱️ Timed Exit Triggered after {int(age)} mins.")
+            continue
 
-            if current_vol > VOLATILITY_THRESHOLD or regime != dominant:
-                close_position(pos)
-                print(f"⚠️ Exit due to volatility or regime shift: {pos.ticket}")
-        except Exception as e:
-            print(f"⚠️ Exit model skipped: {e}")
-
-# === SL Modifier ===
-def modify_sl(position, new_sl):
-    request = {
-        "action": mt5.TRADE_ACTION_SLTP,
-        "symbol": position.symbol,
-        "position": position.ticket,
-        "sl": new_sl,
-        "tp": position.tp,
-        "deviation": 10,
-    }
-    result = mt5.order_send(request)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"❌ SL update failed for {position.ticket}: {result.comment}")
-    else:
-        print(f"🔒 SL updated for {position.ticket} → {new_sl:.2f}")
-
-# === Close Order Logic ===
-def close_position(position):
-    tick = mt5.symbol_info_tick(position.symbol)
-    price = tick.bid if position.type == mt5.POSITION_TYPE_BUY else tick.ask
-    close_type = mt5.ORDER_TYPE_SELL if position.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
-
+def close_position(ticket, volume):
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "position": position.ticket,
-        "symbol": position.symbol,
-        "volume": position.volume,
-        "type": close_type,
-        "price": price,
+        "position": ticket,
+        "volume": volume,
+        "type": mt5.ORDER_TYPE_SELL if mt5.positions_get(ticket=ticket)[0].type == 0 else mt5.ORDER_TYPE_BUY,
+        "price": mt5.symbol_info_tick("XAUUSD").bid if mt5.positions_get(ticket=ticket)[0].type == 0 else mt5.symbol_info_tick("XAUUSD").ask,
         "deviation": 10,
         "magic": 234000,
-        "comment": "Auto Exit",
-        "type_filling": mt5.ORDER_FILLING_IOC,
+        "comment": "Smart Exit Trigger",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC
     }
 
     result = mt5.order_send(request)
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"❌ Failed to close position {position.ticket}: {result.comment}")
+        print(f"❌ Exit Failed: {result.retcode}")
     else:
-        print(f"✅ Position {position.ticket} closed at {price:.2f}")
+        print(f"✅ Position Closed: {ticket}")
