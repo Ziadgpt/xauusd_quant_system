@@ -3,7 +3,7 @@ import sys
 
 # === Always-available modules ===
 from strategies.momentum import apply_rsi2
-from logs.logger import log_trade
+from logs.logger  import log_trade
 from utils.notifier import send_alert
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
