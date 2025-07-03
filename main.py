@@ -14,6 +14,8 @@ from data.fetch_data import get_ohlcv
 from execution.trade_manager import open_trade
 from execution.trade_manager import manage_open_positions
 from sim.signal_tracker import record_signal
+from strategies.structure_breakout import detect_hh_ll_breakout
+
 
 # --- MT5 Setup ---
 mt5_enabled = True
@@ -86,22 +88,24 @@ try:
                 open_trade("XAUUSD", 0.1, macd_signal)
             log_trade(macd_signal, price, df.iloc[-1]["macd"], sl=150, tp=300)
 
-        # === Ensemble Logic ===
-        combined = rsi2_signal + macd_signal
-        if combined == 2:
+        # === Strategy 3: HH/LL Breakout ===
+        df = detect_hh_ll_breakout(df)
+        structure_signal = df.iloc[-1]["signal_structure"]
+
+        # Ensemble Logic
+        combined = rsi2_signal + macd_signal + structure_signal
+        if combined >= 2:
             signal = 1
-            strategy_used = "RSI2 + MACD_BB"
-        elif combined == -2:
+            strategy_used = "Ensemble Long"
+        elif combined <= -2:
             signal = -1
-            strategy_used = "RSI2 + MACD_BB"
-        elif rsi2_signal != 0:
-            signal = rsi2_signal
-            strategy_used = "RSI2 Only"
+            strategy_used = "Ensemble Short"
+        elif structure_signal != 0:
+            signal = structure_signal
+            strategy_used = "Structure Breakout Only"
         else:
             signal = 0
             strategy_used = None
-
-        print(f"📊 Signals — RSI2: {rsi2_signal}, MACD_BB: {macd_signal}, Final: {signal}")
 
         # === Execute Trade ===
         if signal != 0:
@@ -113,7 +117,7 @@ try:
             if mt5_enabled:
                 open_trade("XAUUSD", 0.1, signal)
 
-            log_trade(signal, price, rsi_val, sl=150, tp=300)
+            log_trade(signal, price, rsi_val, sl=150, tp=300, strategy=strategy_used)
 
             # Track for exit logic
             record_signal(
