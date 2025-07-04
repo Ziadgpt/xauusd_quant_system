@@ -2,7 +2,7 @@ import MetaTrader5 as mt5
 import os
 
 def initialize():
-    path_to_terminal = r"C:\Program Files\MetaTrader 5\terminal64.exe"  # ✅ Update if your path is different
+    path_to_terminal = r"C:\Program Files\FTMO Global Markets MT5 Terminal\terminal64.exe"  # ✅ Update if your path is different
 
     if not os.path.exists(path_to_terminal):
         print("❌ terminal64.exe not found. Check your path.")
