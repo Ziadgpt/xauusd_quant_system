@@ -7,45 +7,18 @@ from indicators.rsi import calculate_rsi
 from indicators.macd import calculate_macd
 
 
-def open_trade(symbol="XAUUSD", lot=0.1, direction=1, sl=150, tp=300, strategy="RSI2", magic=234000):
+from utils.risk import calculate_lot_size
+
+def open_trade(symbol="XAUUSD", direction=1, sl=150, tp=300, strategy="RSI2", magic=234000, risk_percent=1.0):
+    account = mt5.account_info()
+    balance = account.balance if account else 10000  # fallback for sim
+
+    # === Calculate lot size ===
+    lot = calculate_lot_size(balance, sl, risk_percent=risk_percent)
+
     tick = mt5.symbol_info_tick(symbol)
-    if not tick:
-        msg = "❌ No tick data available for trade entry."
-        print(msg)
-        send_alert(msg)
-        return
-
-    price = tick.ask if direction == 1 else tick.bid
-    order_type = mt5.ORDER_TYPE_BUY if direction == 1 else mt5.ORDER_TYPE_SELL
-    sl_price = price - sl * 0.01 if direction == 1 else price + sl * 0.01
-    tp_price = price + tp * 0.01 if direction == 1 else price - tp * 0.01
-
-    request = {
-        "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": symbol,
-        "volume": lot,
-        "type": order_type,
-        "price": price,
-        "sl": round(sl_price, 2),
-        "tp": round(tp_price, 2),
-        "deviation": 10,
-        "magic": magic,
-        "comment": f"{strategy} Entry",
-        "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
-    }
-
-    result = mt5.order_send(request)
-
-    if result.retcode == mt5.TRADE_RETCODE_DONE:
-        msg = f"✅ Trade Executed: {symbol} {'BUY' if direction == 1 else 'SELL'} @ {price:.2f}"
-        print(msg)
-        send_alert(msg)
-    else:
-        error_msg = f"❌ Trade Failed: retcode {result.retcode} | {mt5.last_error()}"
-        print(error_msg)
-        send_alert(error_msg)
-
+    ...
+    # Use `lot` instead of fixed 0.1
 
 def manage_open_positions(symbol="XAUUSD"):
     positions = mt5.positions_get(symbol=symbol)

@@ -15,6 +15,7 @@ from execution.trade_manager import open_trade
 from execution.trade_manager import manage_open_positions
 from sim.signal_tracker import record_signal
 from strategies.structure_breakout import detect_hh_ll_breakout
+from strategies.atr_breakout import apply_atr_breakout
 
 
 # --- MT5 Setup ---
@@ -85,24 +86,31 @@ try:
             send_alert(f"⚡ MACD+BB Entry: {direction} @ {price:.2f}")
 
             if mt5_enabled:
-                open_trade("XAUUSD", 0.1, macd_signal)
+                open_trade("XAUUSD", direction=signal, sl=150, tp=300, strategy=strategy_used, risk_percent=1.0)
+
             log_trade(macd_signal, price, df.iloc[-1]["macd"], sl=150, tp=300)
 
         # === Strategy 3: HH/LL Breakout ===
         df = detect_hh_ll_breakout(df)
         structure_signal = df.iloc[-1]["signal_structure"]
 
-        # Ensemble Logic
         combined = rsi2_signal + macd_signal + structure_signal
+
         if combined >= 2:
             signal = 1
-            strategy_used = "Ensemble Long"
+            strategy_used = "Ensemble (RSI2 + MACD + Structure)"
         elif combined <= -2:
             signal = -1
-            strategy_used = "Ensemble Short"
+            strategy_used = "Ensemble (RSI2 + MACD + Structure)"
         elif structure_signal != 0:
             signal = structure_signal
-            strategy_used = "Structure Breakout Only"
+            strategy_used = "Structure Only"
+        elif macd_signal != 0:
+            signal = macd_signal
+            strategy_used = "MACD_BB Only"
+        elif rsi2_signal != 0:
+            signal = rsi2_signal
+            strategy_used = "RSI2 Only"
         else:
             signal = 0
             strategy_used = None
