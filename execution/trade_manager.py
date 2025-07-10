@@ -1,40 +1,17 @@
-import MetaTrader5 as mt5
-import pandas as pd
-
-from utils.notifier import send_alert
-from indicators.trailing_stop import calculate_trailing_stop
-from indicators.rsi import calculate_rsi
-from indicators.macd import calculate_macd
-
-
-from utils.risk import calculate_lot_size
-
-def open_trade(symbol="XAUUSD", direction=1, sl=150, tp=300, strategy="RSI2", magic=234000, risk_percent=1.0):
-    account = mt5.account_info()
-    balance = account.balance if account else 10000  # fallback for sim
-
-    # === Calculate lot size ===
-    lot = calculate_lot_size(balance, sl, risk_percent=risk_percent)
-
-    tick = mt5.symbol_info_tick(symbol)
-    ...
-    # Use `lot` instead of fixed 0.1
-
-def manage_open_positions(symbol="XAUUSD"):
+def manage_open_positions(symbol="XAUUSDc"):
     positions = mt5.positions_get(symbol=symbol)
     if not positions:
         print("📭 No open positions.")
         return
 
-    # Price and indicator data
     tick = mt5.symbol_info_tick(symbol)
     if not tick:
         print("❌ Failed to get current price tick.")
         return
 
-    last_price = tick.bid  # for exits and SL
+    last_price = tick.bid
 
-    # Get latest 100 candles for indicator analysis
+    # Get latest candles for indicators
     bars = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, 100)
     if bars is None or len(bars) == 0:
         print("❌ Failed to fetch OHLCV for indicator analysis.")
@@ -55,25 +32,33 @@ def manage_open_positions(symbol="XAUUSD"):
         direction = 1 if pos.type == mt5.ORDER_TYPE_BUY else -1
         entry = pos.price_open
         tp = pos.tp
+        current_sl = pos.sl or 0
         current_magic = pos.magic
 
-        # --- Trailing Stop Logic ---
+        # === Trailing Stop Logic ===
         new_sl = calculate_trailing_stop(entry, last_price, direction, distance=100)
+
         if new_sl:
-            sl_request = {
-                "action": mt5.TRADE_ACTION_SLTP,
-                "position": ticket,
-                "sl": round(new_sl, 2),
-                "tp": tp,
-            }
+            should_update_sl = (
+                (direction == 1 and (current_sl == 0 or new_sl > current_sl)) or
+                (direction == -1 and (current_sl == 0 or new_sl < current_sl))
+            )
 
-            sl_result = mt5.order_send(sl_request)
-            if sl_result.retcode == mt5.TRADE_RETCODE_DONE:
-                msg = f"🔒 Updated SL for ticket {ticket} → {new_sl:.2f}"
-                print(msg)
-                send_alert(msg)
+            if should_update_sl:
+                sl_request = {
+                    "action": mt5.TRADE_ACTION_SLTP,
+                    "position": ticket,
+                    "sl": round(new_sl, 2),
+                    "tp": tp,
+                }
 
-        # --- Exit Logic ---
+                sl_result = mt5.order_send(sl_request)
+                if sl_result.retcode == mt5.TRADE_RETCODE_DONE:
+                    msg = f"🔒 Trailing SL updated for ticket {ticket} → {new_sl:.2f}"
+                    print(msg)
+                    send_alert(msg)
+
+        # === Exit Logic (MACD Divergence + RSI Overbought/Oversold) ===
         should_exit = (
             (direction == 1 and macd_now < signal_now and rsi_now > 70) or
             (direction == -1 and macd_now > signal_now and rsi_now < 30)
@@ -83,19 +68,7 @@ def manage_open_positions(symbol="XAUUSD"):
             close_request = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": symbol,
-                "volume": pos.volume,
+                "volume": round(pos.volume, 2),
                 "type": mt5.ORDER_TYPE_SELL if direction == 1 else mt5.ORDER_TYPE_BUY,
                 "position": ticket,
-                "price": last_price,
-                "deviation": 10,
-                "magic": current_magic,
-                "comment": "Exit via MACD/RSI",
-                "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": mt5.ORDER_FILLING_IOC
-            }
-
-            close_result = mt5.order_send(close_request)
-            if close_result.retcode == mt5.TRADE_RETCODE_DONE:
-                msg = f"✅ Trade Closed: {symbol} {'BUY' if direction==1 else 'SELL'} @ {last_price:.2f} by exit logic"
-                print(msg)
-                send_alert(msg)
+                "price": last
