@@ -1,82 +1,82 @@
 import time
+import os
 import sys
 from dotenv import load_dotenv
 
 from strategies.momentum import apply_rsi2
 from strategies.macd_bollinger import apply_macd_bollinger
 from strategies.structure_breakout import detect_hh_ll_breakout
-# from strategies.atr_breakout import apply_atr_breakout  # Optional
+# from strategies.atr_breakout import apply_atr_breakout
 
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
 
-from utils.mt5_connector import connect_mt5, shutdown_mt5
 from data.fetch_data import get_ohlcv
 from execution.trade_manager import open_trade, manage_open_positions
 from logs.logger import log_trade
+from utils.mt5_connector import connect_mt5, shutdown_mt5
 from utils.notifier import send_alert
 from sim.signal_tracker import record_signal
 
-# === Load Env ===
+# === Load Environment Variables ===
 load_dotenv()
 
-# === Symbol for Cent Account ===
+# === Symbol Setup ===
 symbol = "XAUUSDc"
 
-# === MT5 Connect ===
+# === Connect to MT5 ===
+mt5_enabled = True
 if not connect_mt5():
     print("❌ MT5 initialization failed.")
-    sys.exit()
+    mt5_enabled = False
 else:
-    print("✅ MT5 connected.")
+    print("✅ Connected to MT5.")
 
-# === Trading Loop ===
 try:
     while True:
-        print("\n🔁 Starting new 15M cycle...")
+        print("\n🔁 Starting new cycle...")
 
-        # === Get Market Data ===
+        # === Fetch OHLCV Data ===
         df = get_ohlcv(symbol=symbol)
         if df is None or len(df) < 30:
-            print("⚠️ Insufficient OHLCV data.")
+            print("⚠️ Insufficient data.")
             time.sleep(60)
             continue
 
-        # === Volatility Filter (GARCH) ===
+        # === GARCH Volatility Filter ===
         vol = forecast_garch_volatility(df)
         print(f"📉 Forecasted Volatility: {vol:.2f}%")
         if vol > 2.0:
-            send_alert("⚠️ High volatility — skipping.")
-            time.sleep(60 * 15)
+            send_alert("⚠️ High volatility — skipping trade.")
+            time.sleep(900)
             continue
 
-        # === Regime Filter (HMM) ===
+        # === HMM Market Regime Detection ===
         regime, dominant = detect_market_regime(df)
-        print(f"📊 Market Regime: {regime} | Dominant: {dominant}")
+        print(f"📊 Market Regime: {regime}, Dominant: {dominant}")
         if regime != dominant:
             send_alert("📉 Non-trending regime — no trades.")
-            time.sleep(60 * 15)
+            time.sleep(900)
             continue
 
-        # === Strategy 1: RSI2 ===
+        # === Apply Strategies ===
         df = apply_rsi2(df)
         rsi2_signal = df.iloc[-1]["signal"]
         rsi_val = df.iloc[-1]["rsi2"]
 
-        # === Strategy 2: MACD + BB ===
         df = apply_macd_bollinger(df)
         macd_signal = df.iloc[-1]["signal_macd_bb"]
 
-        # === Strategy 3: Structure Breakout ===
         df = detect_hh_ll_breakout(df)
         structure_signal = df.iloc[-1]["signal_structure"]
 
-        # === (Optional) Strategy 4: ATR breakout ===
+        # === (Optional) ATR breakout ===
         # df = apply_atr_breakout(df)
         # atr_signal = df.iloc[-1]["signal_atr"]
 
         # === Ensemble Signal Logic ===
         combined = rsi2_signal + macd_signal + structure_signal
+
         if combined >= 2:
             signal = 1
             strategy_used = "Ensemble (RSI2 + MACD + Structure)"
@@ -96,7 +96,7 @@ try:
             signal = 0
             strategy_used = None
 
-        # === Trade Execution ===
+        # === Execute Trade ===
         if signal != 0:
             direction = "BUY" if signal == 1 else "SELL"
             price = df.iloc[-1]["close"]
@@ -104,22 +104,17 @@ try:
             print(f"🚨 Signal: {direction} from {strategy_used} @ {price:.2f}")
             send_alert(f"🚨 {strategy_used} → {direction} on {symbol} @ {price:.2f}")
 
-            open_trade(
-                symbol=symbol,
-                direction=signal,
-                sl=150,
-                tp=300,
-                strategy=strategy_used,
-                risk_percent=1.0
-            )
+            if mt5_enabled:
+                open_trade(
+                    symbol=symbol,
+                    direction=signal,
+                    sl=150,
+                    tp=300,
+                    strategy=strategy_used,
+                    risk_percent=1.0
+                )
 
-            log_trade(
-                signal=direction,
-                price=price,
-                rsi_value=rsi_val,
-                sl=150,
-                tp=300
-            )
+            log_trade(signal, price, rsi_val, sl=150, tp=300, strategy=strategy_used)
 
             record_signal(
                 timestamp=df.iloc[-1]["time"],
@@ -130,18 +125,20 @@ try:
                 tp=price + 3.0 if signal == 1 else price - 3.0
             )
         else:
-            print("ℹ️ No signal this cycle.")
+            print("ℹ️ No valid signal this cycle.")
 
-        # === Manage Open Positions (Trailing Stop + Exit Logic) ===
-        manage_open_positions(symbol=symbol)
+        # === Manage Open Positions ===
+        manage_open_positions(symbol)
 
         # === Wait Until Next Candle ===
-        time.sleep(60 * 15)
+        time.sleep(900)  # 15M
 
 except KeyboardInterrupt:
-    print("🛑 Bot manually stopped.")
+    print("🛑 Stopped manually.")
+
 except Exception as e:
-    print(f"❌ Fatal Error: {e}")
-    send_alert(f"❌ Bot Error: {e}")
+    print(f"❌ Fatal error: {e}")
+    send_alert(f"❌ Bot error: {e}")
+
 finally:
     shutdown_mt5()
