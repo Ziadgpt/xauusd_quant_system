@@ -9,7 +9,7 @@ from logs.logger import log_trade
 from utils.notifier import send_alert
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
-from execution.mt5_connector import initialize, shutdown
+from utils.mt5_connector import connect_mt5, shutdown_mt5
 from data.fetch_data import get_ohlcv
 from execution.trade_manager import open_trade
 from execution.trade_manager import manage_open_positions
@@ -22,7 +22,7 @@ from strategies.atr_breakout import apply_atr_breakout
 mt5_enabled = True
 
 try:
-    if not initialize():
+    if not connect_mt5():
         print("❌ MT5 initialization failed.")
         mt5_enabled = False
     else:
@@ -36,7 +36,7 @@ except Exception as e:
 load_dotenv()
 
 # === Initialize MT5 ===
-if not initialize():
+if not connect_mt5():
     print("❌ MT5 initialization failed. Exiting.")
     sys.exit()
 print("✅ MT5 connected.")
@@ -149,4 +149,4 @@ except Exception as e:
     print(f"❌ Fatal Error: {e}")
     send_alert(f"❌ Bot Error: {e}")
 finally:
-    shutdown()
+    shutdown_mt5()
