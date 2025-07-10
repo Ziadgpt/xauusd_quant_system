@@ -15,8 +15,13 @@ from execution.trade_manager import open_trade
 from execution.trade_manager import manage_open_positions
 from sim.signal_tracker import record_signal
 from strategies.structure_breakout import detect_hh_ll_breakout
-from strategies.atr_breakout import apply_atr_breakout
+# from strategies.atr_breakout import apply_atr_breakout  # Optional if used
 
+# === Load Environment Variables ===
+load_dotenv()
+
+# === Symbol Setup for Cent Account ===
+symbol = "XAUUSDc"  # Update this if your broker uses "XAUUSD.cent" instead
 
 # --- MT5 Setup ---
 mt5_enabled = True
@@ -31,28 +36,18 @@ except Exception as e:
     print(f"⚠️ MT5 import or init failed: {e}")
     mt5_enabled = False
 
-
-# Load env vars
-load_dotenv()
-
-# === Initialize MT5 ===
-if not connect_mt5():
-    print("❌ MT5 initialization failed. Exiting.")
-    sys.exit()
-print("✅ MT5 connected.")
-
 try:
     while True:
         print("\n🔁 Starting new cycle...")
 
         # === Fetch OHLCV ===
-        df = get_ohlcv()
+        df = get_ohlcv(symbol=symbol)
         if df is None or len(df) < 30:
             print("⚠️ Data fetch failed or insufficient bars.")
             time.sleep(60)
             continue
 
-        # === Volatility Check ===
+        # === Volatility Filter ===
         vol = forecast_garch_volatility(df)
         print(f"📉 Forecasted Volatility: {vol:.2f}%")
         if vol > 2.0:
@@ -60,7 +55,7 @@ try:
             time.sleep(60 * 15)
             continue
 
-        # === Regime Check ===
+        # === Market Regime Filter ===
         regime, dominant = detect_market_regime(df)
         print(f"📊 Market Regime: {regime}, Dominant: {dominant}")
         if regime != dominant:
@@ -68,32 +63,24 @@ try:
             time.sleep(60 * 15)
             continue
 
-        # === Strategy 1: RSI2 ===
+        # === Strategy 1: RSI(2) ===
         df = apply_rsi2(df)
         rsi2_signal = df.iloc[-1]["signal"]
         rsi_val = df.iloc[-1]["rsi2"]
 
-
-        # === Strategy 2: MACD + BB ===
+        # === Strategy 2: MACD + Bollinger Bands ===
         df = apply_macd_bollinger(df)
         macd_signal = df.iloc[-1]["signal_macd_bb"]
 
-        if macd_signal != 0:
-            direction = "BUY" if macd_signal == 1 else "SELL"
-            price = df.iloc[-1]["close"]
-
-            print(f"🚨 MACD+BB Signal: {direction} at {price:.2f}")
-            send_alert(f"⚡ MACD+BB Entry: {direction} @ {price:.2f}")
-
-            if mt5_enabled:
-                open_trade("XAUUSD", direction=signal, sl=150, tp=300, strategy=strategy_used, risk_percent=1.0)
-
-            log_trade(macd_signal, price, df.iloc[-1]["macd"], sl=150, tp=300)
-
-        # === Strategy 3: HH/LL Breakout ===
+        # === Strategy 3: HH/LL Structure Breakout ===
         df = detect_hh_ll_breakout(df)
         structure_signal = df.iloc[-1]["signal_structure"]
 
+        # === (Optional) Strategy 4: ATR Breakout ===
+        # df = apply_atr_breakout(df)
+        # atr_signal = df.iloc[-1]["signal_atr"]
+
+        # === Ensemble Logic ===
         combined = rsi2_signal + macd_signal + structure_signal
 
         if combined >= 2:
@@ -115,32 +102,41 @@ try:
             signal = 0
             strategy_used = None
 
-        # === Execute Trade ===
+        # === Trade Execution ===
         if signal != 0:
             direction = "BUY" if signal == 1 else "SELL"
             price = df.iloc[-1]["close"]
             print(f"🚨 Signal Detected: {direction} from {strategy_used} @ {price:.2f}")
-            send_alert(f"🚨 {strategy_used} → {direction} on XAUUSD @ {price:.2f}")
+            send_alert(f"🚨 {strategy_used} → {direction} on {symbol} @ {price:.2f}")
 
             if mt5_enabled:
-                open_trade("XAUUSD", 0.1, signal)
+                open_trade(
+                    symbol=symbol,
+                    direction=direction,
+                    sl=150,
+                    tp=300,
+                    strategy=strategy_used,
+                    risk_percent=1.0
+                )
 
             log_trade(signal, price, rsi_val, sl=150, tp=300, strategy=strategy_used)
 
-            # Track for exit logic
+            # Signal Tracker for Exits
             record_signal(
                 timestamp=df.iloc[-1]["time"],
-                symbol="XAUUSD",
+                symbol=symbol,
                 direction=signal,
                 entry_price=price,
                 sl=price - 1.5 if signal == 1 else price + 1.5,
                 tp=price + 3.0 if signal == 1 else price - 3.0
             )
+        else:
+            print("ℹ️ No signal this cycle.")
 
         # === Exit Logic ===
         manage_open_positions()
 
-        # === Wait for next 15M candle ===
+        # === Wait until next 15M candle ===
         time.sleep(60 * 15)
 
 except KeyboardInterrupt:
