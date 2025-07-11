@@ -2,15 +2,18 @@ import csv
 from datetime import datetime
 import os
 
-
-def log_trade(signal, entry_price, indicator_value, sl, tp, strategy="RSI2", symbol="XAUUSD"):
+# === ENTRY Logger ===
+def log_trade(signal, entry_price, indicator_value, sl, tp, strategy="RSI2", symbol="XAUUSD", ml_decision=None):
     filename = "logs/trade_log.csv"
     file_exists = os.path.isfile(filename)
 
     with open(filename, mode='a', newline='') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(["timestamp", "symbol", "strategy", "signal", "entry_price", "indicator", "sl", "tp"])
+            writer.writerow([
+                "timestamp", "symbol", "strategy", "signal",
+                "entry_price", "indicator", "sl", "tp", "ml_decision"
+            ])
 
         writer.writerow([
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -20,9 +23,11 @@ def log_trade(signal, entry_price, indicator_value, sl, tp, strategy="RSI2", sym
             round(entry_price, 2),
             round(indicator_value, 2),
             round(sl, 2),
-            round(tp, 2)
+            round(tp, 2),
+            ml_decision if ml_decision is not None else "N/A"
         ])
 
+# === EXIT Logger ===
 def log_exit(ticket, symbol, direction, entry_price, exit_price, reason, pnl):
     filename = "logs/exit_log.csv"
     file_exists = os.path.isfile(filename)

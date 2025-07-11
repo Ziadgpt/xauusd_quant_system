@@ -10,3 +10,6 @@ arch
 hmmlearn
 scikit-learn
 loguru
+scikit-learn
+joblib
+dotenv

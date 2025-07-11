@@ -10,6 +10,7 @@ from strategies.structure_breakout import detect_hh_ll_breakout
 
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
+from models.ml_filter import predict_trade_signal
 
 from data.fetch_data import get_ohlcv
 from execution.trade_manager import open_trade, manage_open_positions
@@ -95,6 +96,26 @@ try:
         else:
             signal = 0
             strategy_used = None
+
+        # === ML Prediction Filter ===
+        if signal != 0:
+            features = {
+                "rsi2": df.iloc[-1]["rsi2"],
+                "rsi14": df.iloc[-1].get("rsi14", 50),
+                "macd": df.iloc[-1].get("macd", 0),
+                "macd_signal": df.iloc[-1].get("macd_signal", 0),
+                "obv": df.iloc[-1].get("obv", 0),
+                "atr": df.iloc[-1].get("atr", 0),
+                "bb_upper": df.iloc[-1].get("bb_upper", 0),
+                "bb_lower": df.iloc[-1].get("bb_lower", 0),
+                "volatility": vol,
+                "regime": 1 if regime == "trending" else 0
+            }
+
+            ml_decision = predict_trade_signal(features)
+            if ml_decision == 0:
+                print("🤖 ML rejected trade.")
+                signal = 0
 
         # === Execute Trade ===
         if signal != 0:
