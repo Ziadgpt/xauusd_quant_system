@@ -54,11 +54,24 @@ for i, row in df.iterrows():
     df_candles["bb_lower"] = bb_lower
     df_candles["bb_middle"] = bb_middle
 
-    # Strip datetime for models
-    df_model_input = df_candles.select_dtypes(include=["number"]).copy()
+    # Clean model input: numeric only, drop NaNs
+    df_model_input = df_candles.select_dtypes(include=["number"]).dropna().copy()
 
-    vol_forecast = forecast_garch_volatility(df_model_input)
-    regime, _ = detect_market_regime(df_model_input)
+    if df_model_input.empty or df_model_input.isnull().values.any():
+        print(f"❌ Skipping trade {i} — invalid numeric data")
+        continue
+
+    if any(dtype.kind == 'M' for dtype in df_model_input.dtypes):
+        print(f"❌ Skipping trade {i} — datetime column in model input")
+        continue
+
+    # Try GARCH + HMM
+    try:
+        vol_forecast = forecast_garch_volatility(df_model_input)
+        regime, _ = detect_market_regime(df_model_input)
+    except Exception as e:
+        print(f"❌ Error at trade {i}: {e}")
+        continue
 
     # Price action features
     close = df_candles["close"].iloc[-1]
@@ -68,7 +81,7 @@ for i, row in df.iterrows():
     body_ratio = abs(close - open_) / (high - low + 1e-6)
     prev_return = (close - df_candles["close"].iloc[-2]) / df_candles["close"].iloc[-2] * 100
 
-    # Trend via slope
+    # Trend (linear regression slope)
     y = df_candles["close"].tail(10).values
     x = np.arange(len(y))
     slope = np.polyfit(x, y, 1)[0]
@@ -77,6 +90,7 @@ for i, row in df.iterrows():
     hour = entry_time.hour
     weekday = entry_time.weekday()
 
+    # === Append Features ===
     features.append({
         "direction": direction,
         "hour": hour,
@@ -96,7 +110,7 @@ for i, row in df.iterrows():
         "label": label
     })
 
-# === Save ML Dataset ===
+# === Save Final Dataset ===
 features_df = pd.DataFrame(features)
 os.makedirs("data", exist_ok=True)
 features_df.to_csv("data/trade_features.csv", index=False)
