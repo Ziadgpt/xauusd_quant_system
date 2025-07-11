@@ -17,7 +17,7 @@ if not mt5.initialize():
     quit()
 
 # === Load trade log ===
-df = pd.read_csv("logs/trade_log.csv")
+df = pd.read_csv("logs/cleaned_trade_log.csv")
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df["label"] = None
 
