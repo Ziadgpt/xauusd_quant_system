@@ -101,17 +101,17 @@ try:
         if signal != 0:
             features = {
                 "rsi2": df.iloc[-1]["rsi2"],
-                "rsi14": df.iloc[-1].get("rsi14", 50),
-                "macd": df.iloc[-1].get("macd", 0),
-                "macd_signal": df.iloc[-1].get("macd_signal", 0),
-                "bb_upper": df.iloc[-1].get("bb_upper", 0),
-                "bb_lower": df.iloc[-1].get("bb_lower", 0),
-                "body_ratio": df.iloc[-1].get("body_ratio", 0),
-                "prev_return": df.iloc[-1].get("prev_return", 0),
-                "trend_strength": df.iloc[-1].get("trend_strength", 0),
-                "direction": signal,
+                "rsi14": df.iloc[-1]["rsi14"],
+                "macd_line": df.iloc[-1]["macd_line"],
+                "macd_signal": df.iloc[-1]["macd_signal"],
+                "macd_hist": df.iloc[-1]["macd_hist"],
+                "bb_upper": df.iloc[-1]["bb_upper"],
+                "bb_lower": df.iloc[-1]["bb_lower"],
+                "bb_width": df.iloc[-1]["bb_upper"] - df.iloc[-1]["bb_lower"],
+                "obv": df.iloc[-1]["obv"],
+                "atr": df.iloc[-1]["atr"],
                 "volatility": vol,
-                "regime": 1 if regime == "trending" else 0,
+                "regime": regime
             }
 
             ml_decision = predict_trade(features)
