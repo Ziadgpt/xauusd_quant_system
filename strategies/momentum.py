@@ -1,17 +1,9 @@
-import pandas as pd
 from indicators.rsi import calculate_rsi
 
-
-def apply_rsi2(df: pd.DataFrame) -> pd.DataFrame:
-    df["rsi2"] = calculate_rsi(df["close"], period=2)
-
-    def get_signal(rsi):
-        if rsi < 10:
-            return 1  # Buy
-        elif rsi > 90:
-            return -1  # Sell
-        else:
-            return 0
-
-    df["signal"] = df["rsi2"].apply(get_signal)
+def apply_rsi2(df):
+    df["rsi2"] = calculate_rsi(df["close"], 2)
+    df["rsi14"] = calculate_rsi(df["close"], 14)  # ✅ Add this line
+    df["signal"] = 0
+    df.loc[df["rsi2"] < 10, "signal"] = 1
+    df.loc[df["rsi2"] > 90, "signal"] = -1
     return df

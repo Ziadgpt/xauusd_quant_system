@@ -51,8 +51,11 @@ for i, row in df.iterrows():
     df_candles["bb_upper"] = bb_upper
     df_candles["bb_lower"] = bb_lower
 
-    vol_forecast = forecast_garch_volatility(df_candles)
-    regime, _ = detect_market_regime(df_candles)
+    # Filter numeric data for ML models (exclude datetime)
+    numeric_df = df_candles.select_dtypes(include=["number"]).copy()
+    vol_forecast = forecast_garch_volatility(numeric_df)
+    regime, _ = detect_market_regime(numeric_df)
+
 
     # Price action features
     close = df_candles["close"].iloc[-1]
