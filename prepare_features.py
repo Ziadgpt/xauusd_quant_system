@@ -32,7 +32,7 @@ for i, row in df_trades.iterrows():
     label = row["label"]
 
     # Get past candles before the trade
-    rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, timestamp - timedelta(minutes=15*LOOKBACK), LOOKBACK)
+    rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, timestamp - timedelta(minutes=15 * LOOKBACK), LOOKBACK)
     if rates is None or len(rates) < 30:
         print(f"⛔ Not enough data for trade {i}")
         continue
@@ -44,15 +44,20 @@ for i, row in df_trades.iterrows():
     try:
         df["rsi2"] = calculate_rsi(df["close"], 2)
         df["rsi14"] = calculate_rsi(df["close"], 14)
+
         macd_line, macd_signal, macd_hist = calculate_macd(df["close"])
         df["macd_line"] = macd_line
         df["macd_signal"] = macd_signal
         df["macd_hist"] = macd_hist
+
         df = calculate_bollinger_bands(df, period=21)
         df["obv"] = calculate_obv(df)
         df["atr"] = calculate_atr(df, period=14)
-        vol = forecast_garch_volatility(df)
-        regime, _ = detect_market_regime(df)
+
+        # ✅ Use numeric-only data for GARCH and HMM models
+        numeric_df = df.select_dtypes(include=["number"]).copy()
+        vol = forecast_garch_volatility(numeric_df)
+        regime, _ = detect_market_regime(numeric_df)
 
         latest = df.iloc[-1]
 
