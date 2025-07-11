@@ -101,3 +101,4 @@ features_df.to_csv("data/trade_features.csv", index=False)
 print("✅ Features saved to data/trade_features.csv")
 
 mt5.shutdown()
+
