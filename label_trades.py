@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import os
+import numpy as np
 
 # === Setup ===
 SYMBOL = "XAUUSDc"
@@ -19,7 +20,7 @@ if not mt5.initialize():
 # === Load trade log ===
 df = pd.read_csv("logs/cleaned_trade_log.csv")
 df["timestamp"] = pd.to_datetime(df["timestamp"])
-df["label"] = None
+df["label"] = -1  # Default to -1 (unlabeled)
 
 # === Label trades ===
 for idx, row in df.iterrows():
@@ -39,21 +40,24 @@ for idx, row in df.iterrows():
 
         if direction == 1:
             if high >= price + TP * 0.01:
-                hit = 1
+                hit = 1  # TP hit
                 break
             elif low <= price - SL * 0.01:
-                hit = 0
+                hit = 0  # SL hit
                 break
         else:
             if low <= price - TP * 0.01:
-                hit = 1
+                hit = 1  # TP hit
                 break
             elif high >= price + SL * 0.01:
-                hit = 0
+                hit = 0  # SL hit
                 break
 
     df.at[idx, "label"] = hit
     print(f"✅ Trade {idx} → Label = {hit}")
+
+# Ensure column is numeric
+df["label"] = pd.to_numeric(df["label"], errors="coerce")
 
 # === Save labeled trades ===
 os.makedirs("data", exist_ok=True)
