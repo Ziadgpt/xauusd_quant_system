@@ -104,12 +104,14 @@ try:
                 "rsi14": df.iloc[-1].get("rsi14", 50),
                 "macd": df.iloc[-1].get("macd", 0),
                 "macd_signal": df.iloc[-1].get("macd_signal", 0),
-                "obv": df.iloc[-1].get("obv", 0),
-                "atr": df.iloc[-1].get("atr", 0),
                 "bb_upper": df.iloc[-1].get("bb_upper", 0),
                 "bb_lower": df.iloc[-1].get("bb_lower", 0),
+                "body_ratio": df.iloc[-1].get("body_ratio", 0),
+                "prev_return": df.iloc[-1].get("prev_return", 0),
+                "trend_strength": df.iloc[-1].get("trend_strength", 0),
+                "direction": signal,
                 "volatility": vol,
-                "regime": 1 if regime == "trending" else 0
+                "regime": 1 if regime == "trending" else 0,
             }
 
             ml_decision = predict_trade(features)

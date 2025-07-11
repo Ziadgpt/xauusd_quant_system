@@ -7,12 +7,15 @@ import joblib
 import os
 
 # === Load Dataset ===
-df = pd.read_csv("data/trade_features.csv")  # ✅ Use the engineered features
+df = pd.read_csv("data/trade_features.csv")
 df.dropna(inplace=True)
 
 # === Define Features and Target ===
-X = df.drop(columns=["label", "timestamp"], errors="ignore")  # Ignore if "timestamp" doesn't exist
+X = df.drop(columns=["label", "timestamp"], errors="ignore")
 y = df["label"]
+
+# === Save column names used for prediction
+feature_names = list(X.columns)
 
 # === Split ===
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -26,7 +29,7 @@ y_pred = model.predict(X_test)
 print("📊 Classification Report:\n", classification_report(y_test, y_pred))
 print("🧱 Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
 
-# === Save Model ===
+# === Save Model + Feature Names
 os.makedirs("ml", exist_ok=True)
-joblib.dump(model, "ml/trade_model.pkl")
-print("✅ Model saved to ml/trade_model.pkl")
+joblib.dump((model, feature_names), "ml/trade_model.pkl")
+print("✅ Model + feature list saved to ml/trade_model.pkl")
