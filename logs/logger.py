@@ -2,29 +2,26 @@ import csv
 from datetime import datetime
 import os
 
-# === ENTRY Logger ===
-def log_trade(signal, entry_price, indicator_value, sl, tp, strategy="RSI2", symbol="XAUUSD", ml_decision=None):
-    filename = "logs/trade_log.csv"
-    file_exists = os.path.isfile(filename)
+def log_trade(signal, price, rsi_value, sl, tp, symbol="XAUUSD", strategy="Unknown"):
+    """
+    Logs a trade with full schema: timestamp,symbol,strategy,signal,entry_price,indicator,sl,tp
+    """
+    log_path = "logs/trade_log.csv"
+    file_exists = os.path.isfile(log_path)
 
-    with open(filename, mode='a', newline='') as f:
+    with open(log_path, mode="a", newline="") as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow([
-                "timestamp", "symbol", "strategy", "signal",
-                "entry_price", "indicator", "sl", "tp", "ml_decision"
-            ])
-
+            writer.writerow(["timestamp", "symbol", "strategy", "signal", "entry_price", "indicator", "sl", "tp"])
         writer.writerow([
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             symbol,
             strategy,
             "BUY" if signal == 1 else "SELL",
-            round(entry_price, 2),
-            round(indicator_value, 2),
-            round(sl, 2),
-            round(tp, 2),
-            ml_decision if ml_decision is not None else "N/A"
+            round(price, 2),
+            round(rsi_value, 2),
+            sl,
+            tp
         ])
 
 # === EXIT Logger ===

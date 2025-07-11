@@ -135,7 +135,8 @@ try:
                     risk_percent=1.0
                 )
 
-            log_trade(signal, price, rsi_val, sl=150, tp=300, strategy=strategy_used)
+            log_trade(signal, price, rsi_val, sl=150, tp=300, symbol=symbol, strategy=strategy_used)
+
 
             record_signal(
                 timestamp=df.iloc[-1]["time"],
