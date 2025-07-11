@@ -10,7 +10,7 @@ from strategies.structure_breakout import detect_hh_ll_breakout
 
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
-from models.ml_filter import predict_trade_signal
+from ml.predictor import predict_trade
 
 from data.fetch_data import get_ohlcv
 from execution.trade_manager import open_trade, manage_open_positions
@@ -112,7 +112,7 @@ try:
                 "regime": 1 if regime == "trending" else 0
             }
 
-            ml_decision = predict_trade_signal(features)
+            ml_decision = predict_trade(features)
             if ml_decision == 0:
                 print("🤖 ML rejected trade.")
                 signal = 0
