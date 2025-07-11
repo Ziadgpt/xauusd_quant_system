@@ -1,3 +1,4 @@
+# ml/predictor.py
 import pandas as pd
 import joblib
 import os
@@ -9,10 +10,11 @@ if not os.path.exists(model_path):
 
 model = joblib.load(model_path)
 
-def predict_trade(features: dict):
+def predict_trade(features: dict) -> int:
     """
-    Accepts a dict of features and returns prediction: 1 (profit) or 0 (loss).
+    Predicts trade outcome using trained model.
+    Returns: 1 (profitable trade) or 0 (loss)
     """
     df = pd.DataFrame([features])
     prediction = model.predict(df)[0]
-    return prediction
+    return int(prediction)
