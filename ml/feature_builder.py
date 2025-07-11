@@ -1,7 +1,6 @@
 import pandas as pd
 import MetaTrader5 as mt5
 from datetime import datetime
-import time
 import numpy as np
 
 from indicators.rsi import calculate_rsi
@@ -32,7 +31,7 @@ for i, row in df.iterrows():
     direction = 1 if str(row["signal"]).upper() == "BUY" else -1
     label = row["label"]
 
-    # Fetch historical data at time of entry
+    # Fetch historical data before trade
     rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, entry_time, BARS_LOOKBACK)
     if rates is None or len(rates) < 30:
         print(f"⚠️ Skipping trade {i} — not enough data")
@@ -68,9 +67,14 @@ for i, row in df.iterrows():
     x = np.arange(len(y))
     slope = np.polyfit(x, y, 1)[0]
 
+    # Timestamp features (ML safe)
+    hour = entry_time.hour
+    weekday = entry_time.weekday()
+
     features.append({
-        "timestamp": entry_time,
         "direction": direction,
+        "hour": hour,
+        "weekday": weekday,
         "rsi2": df_candles["rsi2"].iloc[-1],
         "rsi14": df_candles["rsi14"].iloc[-1],
         "macd": df_candles["macd"].iloc[-1],
