@@ -33,7 +33,7 @@ for i, row in df.iterrows():
     direction = 1 if str(row["signal"]).upper() == "BUY" else -1
     label = row["label"]
 
-    # Fetch historical data at time of entry
+    # Fetch historical candles
     rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, entry_time, BARS_LOOKBACK)
     if rates is None or len(rates) < 30:
         print(f"⚠️ Skipping trade {i} — not enough data")
@@ -42,18 +42,19 @@ for i, row in df.iterrows():
     df_candles = pd.DataFrame(rates)
     df_candles["time"] = pd.to_datetime(df_candles["time"], unit="s")
 
-    # Calculate Indicators
+    # Indicators
     df_candles["rsi2"] = calculate_rsi(df_candles["close"], period=2)
     df_candles["rsi14"] = calculate_rsi(df_candles["close"], period=14)
     macd_line, macd_sig, _ = calculate_macd(df_candles["close"])
     df_candles["macd"] = macd_line
     df_candles["macd_signal"] = macd_sig
 
-    bb_upper, bb_lower = calculate_bollinger_bands(df_candles["close"], period=21)
+    bb_upper, bb_lower, bb_middle = calculate_bollinger_bands(df_candles["close"], period=21)
     df_candles["bb_upper"] = bb_upper
     df_candles["bb_lower"] = bb_lower
+    df_candles["bb_middle"] = bb_middle
 
-    # Drop non-numeric data before passing to model
+    # Strip datetime for models
     df_model_input = df_candles.select_dtypes(include=["number"]).copy()
 
     vol_forecast = forecast_garch_volatility(df_model_input)
@@ -67,12 +68,12 @@ for i, row in df.iterrows():
     body_ratio = abs(close - open_) / (high - low + 1e-6)
     prev_return = (close - df_candles["close"].iloc[-2]) / df_candles["close"].iloc[-2] * 100
 
-    # Trend (slope of linear regression)
+    # Trend via slope
     y = df_candles["close"].tail(10).values
     x = np.arange(len(y))
     slope = np.polyfit(x, y, 1)[0]
 
-    # Timestamp features (for ML)
+    # Timestamp features
     hour = entry_time.hour
     weekday = entry_time.weekday()
 
@@ -86,6 +87,7 @@ for i, row in df.iterrows():
         "macd_signal": df_candles["macd_signal"].iloc[-1],
         "boll_upper": df_candles["bb_upper"].iloc[-1],
         "boll_lower": df_candles["bb_lower"].iloc[-1],
+        "boll_middle": df_candles["bb_middle"].iloc[-1],
         "volatility": vol_forecast,
         "regime": regime,
         "body_ratio": body_ratio,
@@ -94,11 +96,10 @@ for i, row in df.iterrows():
         "label": label
     })
 
-# === Save Final Feature Set ===
+# === Save ML Dataset ===
 features_df = pd.DataFrame(features)
 os.makedirs("data", exist_ok=True)
 features_df.to_csv("data/trade_features.csv", index=False)
 print("✅ Features saved to data/trade_features.csv")
 
 mt5.shutdown()
-
