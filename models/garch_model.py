@@ -2,8 +2,10 @@ from arch import arch_model
 import pandas as pd
 
 def forecast_garch_volatility(df, price_col="close", horizon=1):
-    returns = 100 * df[price_col].pct_change().dropna()
-    model = arch_model(returns, vol='Garch', p=1, q=1, rescale=True)
+    # Ensure we're working with a clean numeric Series
+    series = df[price_col].astype(float).pct_change().dropna() * 100
+
+    model = arch_model(series, vol='Garch', p=1, q=1, rescale=True)
     res = model.fit(disp="off")
 
     forecast = res.forecast(horizon=horizon)
