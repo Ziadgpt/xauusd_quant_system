@@ -22,7 +22,7 @@ if not mt5.initialize():
     exit()
 
 # === Load Labeled Trades ===
-df_trades = pd.read_csv("labeled_trades.csv")
+df_trades = pd.read_csv("data/labeled_trades.csv")
 df_trades["timestamp"] = pd.to_datetime(df_trades["timestamp"])
 rows = []
 
