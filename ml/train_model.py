@@ -6,7 +6,8 @@ import joblib
 import os
 
 # Load dataset
-df = pd.read_csv("features/dataset.csv")
+df = pd.read_csv("data/labeled_trades.csv")  # or the correct path if different
+
 df.dropna(inplace=True)
 
 # Features and target
