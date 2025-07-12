@@ -80,7 +80,7 @@ for i, row in df.iterrows():
         "weekday": weekday,
         "rsi2": df_candles["rsi2"].iloc[-1],
         "rsi14": df_candles["rsi14"].iloc[-1],
-        "macd": df_candles["macd"].iloc[-1],
+        "macd_line": df.iloc[-1].get("macd_line", 0),
         "macd_signal": df_candles["macd_signal"].iloc[-1],
         "boll_upper": df_candles["bb_upper"].iloc[-1],
         "boll_lower": df_candles["bb_lower"].iloc[-1],
