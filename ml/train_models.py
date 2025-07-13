@@ -27,7 +27,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 models = {
     "RandomForest": RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42),
     "XGBoost": XGBClassifier(n_estimators=100, max_depth=6, use_label_encoder=False, eval_metric="logloss"),
-    "KNN": KNeighborsClassifier(n_neighbors=5)
+    #"KNN": KNeighborsClassifier(n_neighbors=5)
 }
 
 # === Train and Evaluate ===
