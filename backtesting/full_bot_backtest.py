@@ -51,6 +51,16 @@ df["rolling_std_5"] = df["close"].rolling(5).std()
 df["sma_20"] = ta.trend.SMAIndicator(df["close"], 20).sma_indicator()
 df["ema_20"] = ta.trend.EMAIndicator(df["close"], 20).ema_indicator()
 
+# === Missing ML Features ===
+# OBV
+df["obv"] = ta.volume.OnBalanceVolumeIndicator(close=df["close"], volume=df["tick_volume"]).on_balance_volume()
+
+# RSI 14
+df["rsi_14"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
+
+# RSI 2
+df["rsi_2"] = ta.momentum.RSIIndicator(df["close"], window=2).rsi()
+
 # VWAP workaround (no volume support in `ta`)
 df["vwap"] = (df["close"] * df["tick_volume"]).cumsum() / df["tick_volume"].cumsum()
 
