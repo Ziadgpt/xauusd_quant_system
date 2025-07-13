@@ -5,6 +5,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timedelta
+import ta
 
 from data.fetch_data import get_ohlcv
 from strategies.momentum import apply_rsi2
@@ -34,6 +35,19 @@ df = apply_rsi2(df)
 df = apply_macd_bollinger(df)
 df = detect_hh_ll_breakout(df)
 
+# === Add OBV and ATR ===
+df["obv"] = ta.volume.OnBalanceVolumeIndicator(
+    close=df["close"],
+    volume=df.get("tick_volume", df["volume"])  # fallback if tick_volume missing
+).on_balance_volume()
+
+df["atr"] = ta.volatility.AverageTrueRange(
+    high=df["high"],
+    low=df["low"],
+    close=df["close"],
+    window=14
+).average_true_range()
+
 # === Simulation State ===
 open_trade = None
 trade_log = []
@@ -44,7 +58,6 @@ for i in range(100, len(df)):
 
     # Skip if already in trade
     if open_trade:
-        # Manage exit
         current_price = row["close"]
         direction = open_trade["direction"]
         entry_price = open_trade["entry"]
@@ -65,7 +78,7 @@ for i in range(100, len(df)):
             continue  # still holding
 
         # Close trade
-        pnl = (current_price - entry_price) * direction * 10  # simple multiplier
+        pnl = (current_price - entry_price) * direction * 10  # adjust multiplier as needed
         trade_log.append({
             "timestamp": open_trade["timestamp"],
             "exit_time": timestamp,
@@ -120,7 +133,7 @@ for i in range(100, len(df)):
         features = {
             "rsi2": row["rsi2"],
             "rsi14": row["rsi14"],
-            "macd_line": row["macd"],  # ✅ Fix: use the correct column name
+            "macd_line": row["macd"],  # ✅ fixed column name
             "macd_signal": row["macd_signal"],
             "macd_hist": row["macd_hist"],
             "bb_upper": row["bb_upper"],
