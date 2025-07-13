@@ -1,15 +1,31 @@
 import csv
 
-with open("logs/trade_log.csv", "r") as infile:
+input_file = "logs/trade_log.csv"
+output_file = "logs/cleaned_trade_log.csv"
+
+with open(input_file, "r") as infile:
     rows = list(csv.reader(infile))
 
-# Keep only rows that have 8 columns
-cleaned_rows = [r for r in rows if len(r) == 8]
+# Clean rows and report corrupted ones
+cleaned_rows = []
+corrupted_rows = []
 
-# Write clean file
-with open("logs/cleaned_trade_log.csv", "w", newline="") as outfile:
+for i, row in enumerate(rows):
+    if len(row) == 8:
+        cleaned_rows.append(row)
+    else:
+        corrupted_rows.append((i, row))
+
+# Save cleaned log
+with open(output_file, "w", newline="") as outfile:
     writer = csv.writer(outfile)
     writer.writerow(["timestamp", "symbol", "strategy", "signal", "entry_price", "indicator", "sl", "tp"])
     writer.writerows(cleaned_rows)
 
-print("✅ Cleaned log saved as logs/cleaned_trade_log.csv")
+print(f"✅ Cleaned log saved as {output_file}")
+print(f"🧹 Removed {len(corrupted_rows)} corrupted rows.")
+
+if corrupted_rows:
+    print("⚠️ Corrupted rows (index, data):")
+    for idx, row in corrupted_rows[:5]:
+        print(f"Row {idx}: {row}")

@@ -1,100 +1,64 @@
 import pandas as pd
 import MetaTrader5 as mt5
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 
-from indicators.rsi import calculate_rsi
-from indicators.macd import calculate_macd
-from indicators.bollinger import calculate_bollinger_bands
+from features.extract_features import extract_features  # central feature file
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
 
 # === Config ===
 SYMBOL = "XAUUSDc"
 TIMEFRAME = mt5.TIMEFRAME_M15
-BARS_LOOKBACK = 100
+LOOKBACK = 100
 
-# === Initialize MT5 ===
 if not mt5.initialize():
-    print("❌ MT5 init failed")
-    quit()
+    raise RuntimeError("❌ MT5 Initialization Failed")
 
-# === Load Labeled Trades ===
-df = pd.read_csv("labeled_trades.csv")
-df["timestamp"] = pd.to_datetime(df["timestamp"])
+df_trades = pd.read_csv("data/labeled_trades.csv")
+df_trades["timestamp"] = pd.to_datetime(df_trades["timestamp"])
 
-features = []
+results = []
 
-# === Feature Extraction Loop ===
-for i, row in df.iterrows():
+for i, row in df_trades.iterrows():
     entry_time = row["timestamp"]
-    direction = 1 if str(row["signal"]).upper() == "BUY" else -1
     label = row["label"]
+    direction = 1 if str(row["signal"]).upper() == "BUY" else -1
 
-    # Fetch historical data before trade
-    rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, entry_time, BARS_LOOKBACK)
+    # Fetch historical candles before trade
+    rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, entry_time - timedelta(minutes=15 * LOOKBACK), LOOKBACK)
     if rates is None or len(rates) < 30:
-        print(f"⚠️ Skipping trade {i} — not enough data")
+        print(f"⛔ Trade {i} skipped — not enough data.")
         continue
 
-    df_candles = pd.DataFrame(rates)
-    df_candles["time"] = pd.to_datetime(df_candles["time"], unit="s")
+    df = pd.DataFrame(rates)
+    df["timestamp"] = pd.to_datetime(df["time"], unit="s")
 
-    # Calculate Indicators
-    df_candles["rsi2"] = calculate_rsi(df_candles["close"], period=2)
-    df_candles["rsi14"] = calculate_rsi(df_candles["close"], period=14)
-    macd_line, macd_sig, _ = calculate_macd(df_candles["close"])
-    df_candles["macd"] = macd_line
-    df_candles["macd_signal"] = macd_sig
+    try:
+        # Feature engineering
+        df_feat = extract_features(df)
+        numeric_df = df_feat.select_dtypes(include='number')
 
-    bb_upper, bb_lower = calculate_bollinger_bands(df_candles["close"], period=21)
-    df_candles["bb_upper"] = bb_upper
-    df_candles["bb_lower"] = bb_lower
+        # Statistical filters
+        garch_vol = forecast_garch_volatility(numeric_df)
+        hmm_regime, _ = detect_market_regime(numeric_df)
 
-    # Filter numeric data for ML models (exclude datetime)
-    numeric_df = df_candles.select_dtypes(include=["number"]).copy()
-    vol_forecast = forecast_garch_volatility(numeric_df)
-    regime, _ = detect_market_regime(numeric_df)
+        # Final features (last row of extracted df)
+        latest = df_feat.iloc[-1].copy()
+        latest["garch_vol"] = garch_vol
+        latest["regime"] = hmm_regime
+        latest["label"] = label
+        latest["direction"] = direction
 
+        results.append(latest)
+        print(f"✅ Trade {i} processed")
 
-    # Price action features
-    close = df_candles["close"].iloc[-1]
-    high = df_candles["high"].iloc[-1]
-    low = df_candles["low"].iloc[-1]
-    open_ = df_candles["open"].iloc[-1]
-    body_ratio = abs(close - open_) / (high - low + 1e-6)
-    prev_return = (df_candles["close"].iloc[-1] - df_candles["close"].iloc[-2]) / df_candles["close"].iloc[-2] * 100
+    except Exception as e:
+        print(f"❌ Error at trade {i}: {e}")
+        continue
 
-    # Trend (slope of linear regression)
-    y = df_candles["close"].tail(10).values
-    x = np.arange(len(y))
-    slope = np.polyfit(x, y, 1)[0]
-
-    # Timestamp features (ML safe)
-    hour = entry_time.hour
-    weekday = entry_time.weekday()
-
-    features.append({
-        "direction": direction,
-        "hour": hour,
-        "weekday": weekday,
-        "rsi2": df_candles["rsi2"].iloc[-1],
-        "rsi14": df_candles["rsi14"].iloc[-1],
-        "macd_line": df.iloc[-1].get("macd_line", 0),
-        "macd_signal": df_candles["macd_signal"].iloc[-1],
-        "boll_upper": df_candles["bb_upper"].iloc[-1],
-        "boll_lower": df_candles["bb_lower"].iloc[-1],
-        "volatility": vol_forecast,
-        "regime": regime,
-        "body_ratio": body_ratio,
-        "prev_return": prev_return,
-        "trend_strength": slope,
-        "label": label
-    })
-
-# === Save Final Feature Set ===
-features_df = pd.DataFrame(features)
-features_df.to_csv("trade_features.csv", index=False)
-print("✅ Features saved to trade_features.csv")
+df_out = pd.DataFrame(results)
+df_out.to_csv("ml_dataset.csv", index=False)
+print("🎯 Features saved to ml_dataset.csv")
 
 mt5.shutdown()

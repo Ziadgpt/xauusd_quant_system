@@ -1,7 +1,5 @@
-import csv
-from datetime import datetime
-
-def log_trade(signal, price, rsi_value, sl, tp):
-    with open("logs/trade_log.csv", mode="a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([datetime.now(), signal, price, rsi_value, sl, tp])
+timestamp,symbol,strategy,signal,entry_price,indicator,sl,tp
+2025-07-13 09:45:00,XAUUSDc,Ensemble (RSI2 + MACD + Structure),1,2375.50,RSI2,2360,2400
+2025-07-13 12:15:00,XAUUSDc,Structure Only,-1,2378.20,Structure,2393,2353
+2025-07-13 14:30:00,XAUUSDc,MACD_BB Only,1,2373.80,MACD,2358,2398
+2025-07-13 15:45:00,XAUUSDc,RSI2 Only,-1,2376.10,RSI2,2391,2351

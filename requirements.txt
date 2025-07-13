@@ -13,3 +13,4 @@ loguru
 scikit-learn
 joblib
 dotenv
+xgboost
