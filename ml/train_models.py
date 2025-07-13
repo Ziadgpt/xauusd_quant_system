@@ -10,7 +10,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from xgboost import XGBClassifier
 
 # === Load Dataset ===
-df = pd.read_csv("features/dataset.csv")
+df = pd.read_csv("ml_dataset.csv")
 df.dropna(inplace=True)
 
 X = df.drop(columns=["label", "timestamp"], errors="ignore")
