@@ -60,7 +60,12 @@ df["bb_bandwidth"] = df["bb_upper"] - df["bb_lower"]
 df["rolling_std_5"] = df["close"].rolling(5).std()
 df["sma_20"] = ta.trend.SMAIndicator(df["close"], 20).sma_indicator()
 df["ema_20"] = ta.trend.EMAIndicator(df["close"], 20).ema_indicator()
-df["vwap"] = ta.volume.VolumeWeightedAveragePrice(df["high"], df["low"], df["close"], df["tick_volume"]).vwap()
+df["vwap"] = ta.volume.VolumeWeightedAveragePrice(
+    high=df["high"],
+    low=df["low"],
+    close=df["close"],
+    volume=df["tick_volume"]
+).vwap
 df["accum_dist"] = ta.volume.AccumulationDistributionIndicator(df["high"], df["low"], df["close"], df["tick_volume"]).acc_dist_index()
 df["volume_delta"] = df["tick_volume"].diff()
 df["garch_vol"] = df["return_pct"].rolling(20).std()
