@@ -8,7 +8,7 @@ def apply_macd_bollinger(df: pd.DataFrame) -> pd.DataFrame:
     macd = ta.trend.MACD(df["close"])
     df["macd_line"] = macd.macd()
     df["macd_signal"] = macd.macd_signal()
-    df["macd_hist"] = df["macd"] - df["macd_signal"]
+    df["macd_hist"] = df["macd_line"] - df["macd_signal"]
 
     # Bollinger Bands
     bb = ta.volatility.BollingerBands(df["close"], window=21, window_dev=2)
