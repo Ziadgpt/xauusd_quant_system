@@ -2,10 +2,11 @@ import MetaTrader5 as mt5
 import pandas as pd
 
 from utils.notifier import send_alert
+from utils.risk import calculate_lot_size
 from indicators.trailing_stop import calculate_trailing_stop
 from indicators.rsi import calculate_rsi
 from indicators.macd import calculate_macd
-from utils.risk import calculate_lot_size
+from ml.predict_exit_probability import predict_exit_probability  # << ML model
 
 def open_trade(symbol="XAUUSDc", direction=1, sl=150, tp=300, strategy="Unknown", magic=234000, risk_percent=1.0):
     account = mt5.account_info()
@@ -19,7 +20,6 @@ def open_trade(symbol="XAUUSDc", direction=1, sl=150, tp=300, strategy="Unknown"
         print("⚠️ Invalid lot size.")
         return
 
-    # Get latest price
     tick = mt5.symbol_info_tick(symbol)
     if not tick:
         print("❌ Failed to get tick data.")
@@ -68,7 +68,6 @@ def manage_open_positions(symbol="XAUUSDc"):
 
     last_price = tick.bid
 
-    # Get recent candles for indicator analysis
     bars = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, 100)
     if bars is None or len(bars) == 0:
         print("❌ Failed to fetch OHLCV.")
@@ -117,12 +116,31 @@ def manage_open_positions(symbol="XAUUSDc"):
                 else:
                     print(f"❌ Failed SL update: {sl_result.retcode}")
 
-        # === Exit Conditions (MACD crossover + RSI overbought/sold) ===
-        should_exit = (
-            (direction == 1 and macd_now < signal_now and rsi_now > 70) or
-            (direction == -1 and macd_now > signal_now and rsi_now < 30)
-        )
+        # === ML Exit Logic ===
+        try:
+            body_ratio = abs(df["close"].iloc[-1] - df["open"].iloc[-1]) / (df["high"].iloc[-1] - df["low"].iloc[-1] + 1e-6)
+            trend_strength = (df["close"].iloc[-1] - df["close"].iloc[-10]) / 10
 
+            features = {
+                "rsi": rsi_now,
+                "macd": macd_now,
+                "macd_signal": signal_now,
+                "body_ratio": body_ratio,
+                "trend_strength": trend_strength
+            }
+
+            p_win = predict_exit_probability(features)
+            print(f"🧠 P(win) = {p_win:.2f} | Ticket {ticket}")
+
+            should_exit = p_win < 0.4 or (
+                (direction == 1 and macd_now < signal_now and rsi_now > 70) or
+                (direction == -1 and macd_now > signal_now and rsi_now < 30)
+            )
+        except Exception as e:
+            print(f"⚠️ ML exit model failed: {e}")
+            should_exit = False
+
+        # === Close if Needed ===
         if should_exit:
             close_request = {
                 "action": mt5.TRADE_ACTION_DEAL,
@@ -133,14 +151,14 @@ def manage_open_positions(symbol="XAUUSDc"):
                 "price": last_price,
                 "deviation": 10,
                 "magic": current_magic,
-                "comment": "Exit via MACD/RSI",
+                "comment": "Exit via ML/Indicators",
                 "type_time": mt5.ORDER_TIME_GTC,
                 "type_filling": mt5.ORDER_FILLING_IOC
             }
 
             close_result = mt5.order_send(close_request)
             if close_result.retcode == mt5.TRADE_RETCODE_DONE:
-                msg = f"✅ Trade Closed: {symbol} {'BUY' if direction==1 else 'SELL'} @ {last_price:.2f} via exit logic"
+                msg = f"✅ Trade Closed: {symbol} {'BUY' if direction==1 else 'SELL'} @ {last_price:.2f}"
                 print(msg)
                 send_alert(msg)
             else:
