@@ -134,7 +134,7 @@ for i in range(100, len(df)):
         features = {
             "rsi2": row["rsi2"],
             "rsi14": row["rsi14"],
-            "macd_line": row["macd"],  # ✅ fixed column name
+            "macd_line": row["macd_line"],  # ✅ fixed column name
             "macd_signal": row["macd_signal"],
             "macd_hist": row["macd_hist"],
             "bb_upper": row["bb_upper"],
