@@ -35,6 +35,11 @@ def predict_trade(features: dict) -> int:
         1 (take trade) or 0 (reject)
     """
     df = pd.DataFrame([features])
+
+    # Drop datetime columns (they can't be used by sklearn/xgboost models)
+    df = df.select_dtypes(include=["number", "bool", "int", "float"])  # keep only numeric
+    df = df[expected_features]  # ensure correct column order
+
     try:
         df = df[expected_features]
     except KeyError as e:
