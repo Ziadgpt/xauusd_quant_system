@@ -14,16 +14,20 @@ models = {}
 for name, path in model_paths.items():
     if os.path.exists(path):
         models[name] = joblib.load(path)
-    else:
-        print(f"⚠️ {name} model not found at {path} — skipping.")
+    # else:
+        # print(f"⚠️ {name} model not found at {path} — skipping.")  # Optional to comment out
 
-# Load expected feature names
+if not models:
+    raise RuntimeError("❌ No ML models loaded. Train at least one model before running the bot.")
+
+# === Load expected feature list ===
 feature_names_path = "ml/feature_names.pkl"
 if not os.path.exists(feature_names_path):
     raise FileNotFoundError("Missing feature list (ml/feature_names.pkl)")
 
 expected_features = joblib.load(feature_names_path)
 
+# === Prediction Function ===
 def predict_trade(features: dict) -> int:
     """
     Uses ensemble of models to predict trade outcome.
@@ -50,5 +54,4 @@ def predict_trade(features: dict) -> int:
         return 0
 
     # Majority voting
-    final = 1 if sum(votes) >= len(votes) / 2 else 0
-    return final
+    return 1 if sum(votes) >= len(votes) / 2 else 0

@@ -25,7 +25,7 @@ RISK_PER_TRADE = 0.01
 BACKTEST_DAYS = 60
 
 # === Load Historical Data ===
-df = get_ohlcv(SYMBOL, tf="M15", days=BACKTEST_DAYS)
+df = get_ohlcv(SYMBOL, timeframe="M15", days=BACKTEST_DAYS)
 if df is None or len(df) < 300:
     raise ValueError("❌ Not enough data to backtest.")
 
