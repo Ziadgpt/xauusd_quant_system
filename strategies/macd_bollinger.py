@@ -6,7 +6,7 @@ def apply_macd_bollinger(df: pd.DataFrame) -> pd.DataFrame:
 
     # MACD
     macd = ta.trend.MACD(df["close"])
-    df["macd"] = macd.macd()
+    df["macd_line"] = macd.macd()
     df["macd_signal"] = macd.macd_signal()
     df["macd_hist"] = df["macd"] - df["macd_signal"]
 

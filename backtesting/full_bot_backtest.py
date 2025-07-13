@@ -35,18 +35,19 @@ df = apply_rsi2(df)
 df = apply_macd_bollinger(df)
 df = detect_hh_ll_breakout(df)
 
-# === Add OBV and ATR ===
-df["obv"] = ta.add_volume_ta().OnBalanceVolumeIndicator(
-    close=df["close"],
-    volume=df.get("tick_volume", df["volume"])  # fallback if tick_volume missing
-).on_balance_volume()
+# On-Balance Volume (OBV)
+df["obv"] = ta.volume.OnBalanceVolumeIndicator(close=df["close"], volume=df["tick_volume"]).on_balance_volume()
 
-df["atr"] = ta.volatility.AverageTrueRange(
-    high=df["high"],
-    low=df["low"],
-    close=df["close"],
-    window=14
-).average_true_range()
+# ATR
+df["atr"] = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=14).average_true_range()
+
+required_cols = [
+    "rsi2", "rsi14", "macd_line", "macd_signal", "macd_hist",
+    "bb_upper", "bb_lower", "obv", "atr"
+]
+missing = [col for col in required_cols if col not in df.columns]
+if missing:
+    raise ValueError(f"❌ Missing required columns: {missing}")
 
 # === Simulation State ===
 open_trade = None
