@@ -1,35 +1,22 @@
-import pandas as pd
 import joblib
+import numpy as np
 import os
 
-# === Load Models ===
-model_paths = {
-    "RandomForest": "ml/randomforest_model.pkl",
-    "XGBoost": "ml/xgboost_model.pkl"
-}
-models = {name: joblib.load(path) for name, path in model_paths.items() if os.path.exists(path)}
+rf_model = joblib.load("ml/models/rf_model.pkl")
+xgb_model = joblib.load("ml/models/xgb_model.pkl")
 
-if not models:
-    raise RuntimeError("❌ No ML models loaded.")
-
-# === Load Features ===
-expected_features = joblib.load("ml/feature_names.pkl")
-
-# === Predict ===
 def predict_trade(features: dict) -> int:
-    df = pd.DataFrame([features])
     try:
-        df = df[expected_features]
-    except KeyError:
-        missing = set(expected_features) - set(df.columns)
-        raise ValueError(f"Missing required features: {missing}")
+        input_df = pd.DataFrame([features])
+        input_df = input_df[rf_model.feature_names_in_]
 
-    votes = []
-    for name, model in models.items():
-        try:
-            pred = model.predict(df)[0]
-            votes.append(int(pred))
-        except Exception as e:
-            print(f"❌ Error in {name} prediction: {e}")
+        rf_pred = rf_model.predict(input_df)[0]
+        xgb_pred = xgb_model.predict(input_df)[0]
 
-    return 1 if sum(votes) >= len(votes) / 2 else 0
+        if rf_pred == xgb_pred:
+            return rf_pred
+        else:
+            return 0  # Disagreement = no trade
+    except Exception as e:
+        print(f"⚠️ ML error: {e}")
+        return 0

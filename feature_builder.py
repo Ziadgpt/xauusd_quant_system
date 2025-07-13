@@ -1,64 +1,42 @@
 import pandas as pd
-import MetaTrader5 as mt5
-from datetime import datetime, timedelta
-import numpy as np
-
-from features.extract_features import extract_features  # central feature file
+from data.fetch_data import get_ohlcv
+from features.extract_features import extract_features
 from models.garch_model import forecast_garch_volatility
 from models.hmm_model import detect_market_regime
 
-# === Config ===
-SYMBOL = "XAUUSDc"
-TIMEFRAME = mt5.TIMEFRAME_M15
-LOOKBACK = 100
+# === Load Labeled Trades ===
+trades_df = pd.read_csv("labeled_trades.csv")
+features_list = []
 
-if not mt5.initialize():
-    raise RuntimeError("❌ MT5 Initialization Failed")
-
-df_trades = pd.read_csv("data/labeled_trades.csv")
-df_trades["timestamp"] = pd.to_datetime(df_trades["timestamp"])
-
-results = []
-
-for i, row in df_trades.iterrows():
-    entry_time = row["timestamp"]
-    label = row["label"]
-    direction = 1 if str(row["signal"]).upper() == "BUY" else -1
-
-    # Fetch historical candles before trade
-    rates = mt5.copy_rates_from(SYMBOL, TIMEFRAME, entry_time - timedelta(minutes=15 * LOOKBACK), LOOKBACK)
-    if rates is None or len(rates) < 30:
-        print(f"⛔ Trade {i} skipped — not enough data.")
-        continue
-
-    df = pd.DataFrame(rates)
-    df["timestamp"] = pd.to_datetime(df["time"], unit="s")
-
+for _, row in trades_df.iterrows():
     try:
-        # Feature engineering
-        df_feat = extract_features(df)
-        numeric_df = df_feat.select_dtypes(include='number')
+        ts = pd.to_datetime(row["time"])
+        symbol = row["symbol"]
+        label = int(row["label"])
 
-        # Statistical filters
-        garch_vol = forecast_garch_volatility(numeric_df)
-        hmm_regime, _ = detect_market_regime(numeric_df)
+        # Fetch historical context before trade
+        df = get_ohlcv(symbol=symbol, timeframe="M15", count=1500)
+        df["timestamp"] = df["time"]
+        df = df[df["timestamp"] < ts]
 
-        # Final features (last row of extracted df)
-        latest = df_feat.iloc[-1].copy()
-        latest["garch_vol"] = garch_vol
-        latest["regime"] = hmm_regime
-        latest["label"] = label
-        latest["direction"] = direction
+        if len(df) < 50:
+            continue
 
-        results.append(latest)
-        print(f"✅ Trade {i} processed")
+        # Add GARCH + HMM
+        df["garch_vol"] = forecast_garch_volatility(df)
+        regime, _ = detect_market_regime(df)
+        df["regime"] = regime
+
+        # Feature Engineering
+        df = extract_features(df)
+        last_row = df.iloc[-1].to_dict()
+        last_row["label"] = label
+        features_list.append(last_row)
 
     except Exception as e:
-        print(f"❌ Error at trade {i}: {e}")
-        continue
+        print(f"⚠️ Skipping trade at {row['time']}: {e}")
 
-df_out = pd.DataFrame(results)
-df_out.to_csv("ml_dataset.csv", index=False)
-print("🎯 Features saved to ml_dataset.csv")
-
-mt5.shutdown()
+# === Save ML Dataset ===
+ml_df = pd.DataFrame(features_list)
+ml_df.to_csv("ml_dataset.csv", index=False)
+print("✅ Saved features to ml_dataset.csv")
