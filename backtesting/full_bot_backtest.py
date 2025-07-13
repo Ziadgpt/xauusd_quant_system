@@ -36,7 +36,7 @@ df = apply_macd_bollinger(df)
 df = detect_hh_ll_breakout(df)
 
 # === Add OBV and ATR ===
-df["obv"] = ta.volume.OnBalanceVolumeIndicator(
+df["obv"] = ta.add_volume_ta().OnBalanceVolumeIndicator(
     close=df["close"],
     volume=df.get("tick_volume", df["volume"])  # fallback if tick_volume missing
 ).on_balance_volume()
